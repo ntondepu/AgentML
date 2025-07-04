@@ -1,0 +1,265 @@
+/* App.css */
+.header {
+  display: flex;
+  align-items: center;
+  background: #001529;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  margin-right: 20px;
+}
+
+.site-layout-background {
+  background: #fff;
+}
+
+/* Pipeline Components */
+.pipeline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pipeline-item {
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  padding: 16px;
+  background: #fafafa;
+}
+
+.pipeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.pipeline-progress {
+  position: relative;
+  height: 8px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #1890ff, #52c41a);
+  transition: width 0.5s ease;
+}
+
+.progress-text {
+  position: absolute;
+  right: 8px;
+  top: -20px;
+  font-size: 12px;
+  color: #666;
+}
+
+.pipeline-detailed-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.pipeline-card {
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+}
+
+/* Node Grid */
+.node-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+}
+
+.node-item {
+  border: 2px solid #d9d9d9;
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+  background: #fafafa;
+  transition: all 0.3s ease;
+}
+
+.node-item.running {
+  border-color: #52c41a;
+  background: #f6ffed;
+}
+
+.node-item.stopped {
+  border-color: #ff4d4f;
+  background: #fff2f0;
+}
+
+.node-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.node-status {
+  text-align: center;
+}
+
+/* Cluster Visualization */
+.cluster-viz {
+  min-height: 400px;
+}
+
+.cluster-diagram {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  padding: 20px;
+  min-height: 300px;
+}
+
+.cluster-node {
+  width: 100px;
+  height: 100px;
+  border: 3px solid #d9d9d9;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: #fafafa;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.cluster-node.running {
+  border-color: #52c41a;
+  background: #f6ffed;
+}
+
+.cluster-node.stopped {
+  border-color: #ff4d4f;
+  background: #fff2f0;
+}
+
+.cluster-node.leader {
+  border-width: 4px;
+  border-color: #1890ff;
+  background: #e6f7ff;
+}
+
+.node-label {
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.node-role {
+  font-size: 10px;
+  color: #666;
+  margin-top: 4px;
+}
+
+/* Chat Interface */
+.chat-interface {
+  height: 500px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.message {
+  margin-bottom: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  max-width: 80%;
+}
+
+.message.user {
+  background: #1890ff;
+  color: white;
+  margin-left: auto;
+  text-align: right;
+}
+
+.message.assistant {
+  background: white;
+  border: 1px solid #d9d9d9;
+  margin-right: auto;
+}
+
+.chat-input {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-input input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  outline: none;
+}
+
+.chat-input input:focus {
+  border-color: #1890ff;
+}
+
+/* Session List */
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.session-item {
+  padding: 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  background: #fafafa;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.session-item:hover {
+  background: #e6f7ff;
+}
+
+.session-item h4 {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+}
+
+.session-item p {
+  margin: 0;
+  font-size: 12px;
+  color: #666;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .pipeline-detailed-list {
+    grid-template-columns: 1fr;
+  }
+  
+  .node-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .cluster-diagram {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .cluster-node {
+    width: 80px;
+    height: 80px;
+  }
+}

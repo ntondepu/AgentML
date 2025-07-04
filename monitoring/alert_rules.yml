@@ -1,0 +1,47 @@
+groups:
+  - name: agentml_alerts
+    rules:
+      - alert: HighRequestLatency
+        expr: http_request_duration_seconds{quantile="0.95"} > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High request latency detected"
+          description: "95th percentile latency is above 500ms for 5 minutes"
+
+      - alert: MLPipelineFailure
+        expr: ml_jobs_total{status="failed"} > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ML Pipeline failure detected"
+          description: "One or more ML pipelines have failed"
+
+      - alert: RaftLeaderElection
+        expr: raft_leader_elections_total > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Raft leader election occurred"
+          description: "A new leader election has been triggered"
+
+      - alert: ChatbotHighResponseTime
+        expr: chatbot_response_time_seconds{quantile="0.95"} > 2.0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Chatbot response time is high"
+          description: "95th percentile response time is above 2 seconds"
+
+      - alert: NodeDown
+        expr: distributed_sim_active_nodes < 3
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Distributed simulation nodes are down"
+          description: "Less than 3 nodes are active in the simulation"
