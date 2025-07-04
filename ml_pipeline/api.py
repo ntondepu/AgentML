@@ -2,11 +2,15 @@
 ML Pipeline API endpoints for the AutoML Distributed Platform.
 """
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, FastAPI, Header
 from pydantic import BaseModel
 from typing import Dict, List, Optional, Any
 import asyncio
 import logging
+from prometheus_client import make_asgi_app
+from ml_pipeline.pipeline import run_pipeline
+import mlflow
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 from .pipeline import MLPipelineManager
 from .models import (
@@ -24,6 +28,18 @@ ml_router = APIRouter()
 
 # Global pipeline manager instance
 pipeline_manager = None
+
+API_KEY = "demo-key-123"
+
+def api_key_auth(x_api_key: str = Header(...)):
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+
+app = FastAPI()
+FastAPIInstrumentor().instrument_app(app)
+
+# Prometheus metrics endpoint
+app.mount("/metrics", make_asgi_app())
 
 
 async def get_pipeline_manager() -> MLPipelineManager:
@@ -230,3 +246,26 @@ async def list_experiment_runs(
     except Exception as e:
         logger.error(f"Error listing runs for experiment {experiment_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/run-pipeline")
+def trigger_pipeline(dep=Depends(api_key_auth)):
+    run_pipeline()
+    return {"status": "Pipeline run complete"}
+
+
+@app.get("/latest-accuracy")
+def get_latest_accuracy(dep=Depends(api_key_auth)):
+    client = mlflow.tracking.MlflowClient()
+    runs = client.search_runs(experiment_ids=["0"], order_by=["attributes.start_time DESC"], max_results=1)
+    if runs:
+        acc = runs[0].data.metrics.get("accuracy", None)
+        return {"accuracy": acc}
+    return {"accuracy": None}
+
+
+@app.get("/mlflow-runs")
+def list_mlflow_runs(dep=Depends(api_key_auth)):
+    client = mlflow.tracking.MlflowClient()
+    runs = client.search_runs(experiment_ids=["0"], order_by=["attributes.start_time DESC"], max_results=10)
+    return [{"run_id": r.info.run_id, "accuracy": r.data.metrics.get("accuracy", None)} for r in runs]

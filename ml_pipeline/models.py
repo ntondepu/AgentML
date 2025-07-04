@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
 from enum import Enum
+from sklearn.linear_model import LogisticRegression
 
 
 class PipelineStatus(str, Enum):
@@ -267,3 +268,14 @@ class PredictionResponse(BaseModel):
                 "timestamp": "2025-07-03T11:00:00Z"
             }
         }
+
+
+class SimpleClassifier:
+    def __init__(self):
+        self.model = LogisticRegression()
+    def fit(self, X, y):
+        self.model.fit(X, y)
+    def predict(self, X):
+        return self.model.predict(X)
+    def score(self, X, y):
+        return self.model.score(X, y)

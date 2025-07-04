@@ -111,3 +111,50 @@ data:
         - source_labels: [__meta_kubernetes_endpoint_port_name]
           action: keep
           regex: http
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: automl-platform-alerts
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+  - name: automl-platform.rules
+    rules:
+    - alert: MLServiceDown
+      expr: absent(up{job="ml-pipeline"} == 1)
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "ML Pipeline service is down"
+    - alert: RaftSimulatorDown
+      expr: absent(up{job="raft-simulator"} == 1)
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Raft Simulator service is down"
+    - alert: ChatbotDown
+      expr: absent(up{job="chatbot"} == 1)
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Chatbot service is down"
+    - alert: HighErrorRate
+      expr: sum(rate(http_requests_total{status=~"5.."}[5m])) by (job) > 0.05
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High error rate detected (>5%)"
+    - alert: HighLatency
+      expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, job)) > 1
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High 95th percentile latency (>1s) detected"

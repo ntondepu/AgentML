@@ -39,6 +39,13 @@ const mockData = {
 function App() {
   const [selectedKey, setSelectedKey] = useState('dashboard');
   const [data, setData] = useState(mockData);
+  const [raftNodes, setRaftNodes] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [chatMessages, setChatMessages] = useState([
+    { sender: 'assistant', text: 'Hi! How can I help you with your ML pipeline or distributed system today?' }
+  ]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
 
   useEffect(() => {
     // In real app, fetch data from API
@@ -56,6 +63,53 @@ function App() {
 
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    async function fetchRaftState() {
+      setLoading(true);
+      try {
+        const res = await fetch('/api/raft/cluster-state');
+        const data = await res.json();
+        setRaftNodes(data.nodes || []);
+      } catch (e) {
+        setRaftNodes([]);
+      }
+      setLoading(false);
+    }
+    fetchRaftState();
+    const interval = setInterval(fetchRaftState, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const triggerElection = async () => {
+    await fetch('/api/raft/trigger-election', { method: 'POST' });
+  };
+  const createPartition = async () => {
+    await fetch('/api/raft/create-partition', { method: 'POST' });
+  };
+  const resetSimulation = async () => {
+    await fetch('/api/raft/reset', { method: 'POST' });
+  };
+
+  const sendMessage = async () => {
+    if (!chatInput.trim()) return;
+    const userMsg = { sender: 'user', text: chatInput };
+    setChatMessages(msgs => [...msgs, userMsg]);
+    setChatLoading(true);
+    try {
+      const res = await fetch('http://localhost:8003/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user: 'user', message: chatInput })
+      });
+      const data = await res.json();
+      setChatMessages(msgs => [...msgs, { sender: 'assistant', text: data.response }]);
+    } catch (e) {
+      setChatMessages(msgs => [...msgs, { sender: 'assistant', text: 'Sorry, there was an error contacting the chatbot.' }]);
+    }
+    setChatInput("");
+    setChatLoading(false);
+  };
 
   const menuItems = [
     { key: 'dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
@@ -206,26 +260,35 @@ function App() {
 
   const renderDistributedSim = () => (
     <div>
-      <Card title="Distributed Systems Simulation" extra={<Button type="primary">Run Scenario</Button>}>
+      <Card title="Distributed Systems Simulation" extra={<Button type="primary" onClick={triggerElection}>Trigger Election</Button>}>
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={16}>
             <Card title="Cluster Visualization" className="cluster-viz">
               <div className="cluster-diagram">
-                {data.distributedNodes.map(node => (
-                  <div key={node.id} className={`cluster-node ${node.status} ${node.role}`}>
-                    <div className="node-label">{node.id}</div>
-                    <div className="node-role">{node.role}</div>
-                  </div>
-                ))}
+                {loading ? <div>Loading...</div> :
+                  raftNodes.map(node => (
+                    <div key={node.node_id} className={`cluster-node ${node.status} ${node.role.toLowerCase()}`}
+                      style={{
+                        background: node.role === 'LEADER' ? '#ffe58f' : node.status === 'RUNNING' ? '#e6f7ff' : '#fff1f0',
+                        border: node.role === 'LEADER' ? '2px solid #faad14' : '1px solid #d9d9d9',
+                        margin: 8, padding: 12, borderRadius: 8, minWidth: 100, textAlign: 'center'
+                      }}>
+                      <div className="node-label">{node.node_id}</div>
+                      <div className="node-role">{node.role}</div>
+                      <div className="node-status">{node.status}</div>
+                      {node.is_partitioned && <Badge status="error" text="Partitioned" />}
+                    </div>
+                  ))
+                }
               </div>
             </Card>
           </Col>
           <Col xs={24} lg={8}>
             <Card title="Controls">
               <Space direction="vertical" style={{ width: '100%' }}>
-                <Button block icon={<PlayCircleOutlined />}>Trigger Election</Button>
-                <Button block icon={<PauseCircleOutlined />}>Create Partition</Button>
-                <Button block icon={<SyncOutlined />}>Reset Simulation</Button>
+                <Button block icon={<PlayCircleOutlined />} onClick={triggerElection}>Trigger Election</Button>
+                <Button block icon={<PauseCircleOutlined />} onClick={createPartition}>Create Partition</Button>
+                <Button block icon={<SyncOutlined />} onClick={resetSimulation}>Reset Simulation</Button>
               </Space>
             </Card>
           </Col>
@@ -240,30 +303,35 @@ function App() {
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={16}>
             <Card title="Chat" className="chat-interface">
-              <div className="chat-messages">
-                <div className="message user">
-                  <span>What's the status of my ML pipeline?</span>
-                </div>
-                <div className="message assistant">
-                  <span>Your ML pipeline "Customer Churn Prediction" is currently running at 75% progress. It should complete in about 5 minutes.</span>
-                </div>
+              <div className="chat-messages" style={{ minHeight: 200, maxHeight: 400, overflowY: 'auto', marginBottom: 16 }}>
+                {chatMessages.map((msg, idx) => (
+                  <div key={idx} className={`message ${msg.sender}`}
+                    style={{ textAlign: msg.sender === 'user' ? 'right' : 'left', margin: '8px 0' }}>
+                    <span style={{ background: msg.sender === 'user' ? '#e6f7ff' : '#f6ffed', padding: 8, borderRadius: 8 }}>{msg.text}</span>
+                  </div>
+                ))}
               </div>
-              <div className="chat-input">
-                <input placeholder="Type your message..." />
-                <Button type="primary">Send</Button>
+              <div className="chat-input" style={{ display: 'flex', gap: 8 }}>
+                <input
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') sendMessage(); }}
+                  placeholder="Type your message..."
+                  style={{ flex: 1, padding: 8, borderRadius: 4, border: '1px solid #d9d9d9' }}
+                  disabled={chatLoading}
+                />
+                <Button type="primary" onClick={sendMessage} loading={chatLoading}>Send</Button>
               </div>
             </Card>
           </Col>
           <Col xs={24} lg={8}>
             <Card title="Sessions">
               <div className="session-list">
-                {data.chatSessions.map(session => (
-                  <div key={session.id} className="session-item">
-                    <h4>{session.title}</h4>
-                    <p>{session.messages} messages</p>
-                    <Badge status={session.active ? 'success' : 'default'} />
-                  </div>
-                ))}
+                <div className="session-item">
+                  <h4>Current Session</h4>
+                  <p>{chatMessages.length} messages</p>
+                  <Badge status="success" />
+                </div>
               </div>
             </Card>
           </Col>

@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+pydantic
+requests
+faiss-cpu
+numpy
+prometheus_client
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-instrumentation
+opentelemetry-instrumentation-fastapi 

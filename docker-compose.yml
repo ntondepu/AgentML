@@ -29,25 +29,14 @@ services:
 
   # MLflow Tracking Server
   mlflow:
-    image: python:3.9-slim
-    command: >
-      bash -c "
-        pip install mlflow psycopg2-binary &&
-        mlflow server --host 0.0.0.0 --port 5000 
-        --backend-store-uri postgresql://agentml:agentml_password@postgres:5432/agentml
-        --default-artifact-root /mlflow/artifacts
-      "
+    image: mlflow/mlflow:latest
     ports:
       - "5000:5000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - mlflow_artifacts:/mlflow/artifacts
     environment:
-      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
-      AWS_ACCESS_KEY_ID: minioadmin
-      AWS_SECRET_ACCESS_KEY: minioadmin
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:///mlflow.db --default-artifact-root /mlflow/artifacts
+    volumes:
+      - ./mlruns:/mlflow/artifacts
 
   # MinIO for artifact storage
   minio:
@@ -100,6 +89,34 @@ services:
       - "14268:14268"
     environment:
       COLLECTOR_OTLP_ENABLED: true
+
+  ml-pipeline:
+    build:
+      context: ./ml_pipeline
+    container_name: ml-pipeline
+    ports:
+      - "8001:8000"
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      - mlflow
+
+  raft-simulator:
+    build:
+      context: ./distributed_sim
+    container_name: raft-simulator
+    ports:
+      - "8002:8000"
+
+  chatbot:
+    build:
+      context: ./chatbot
+    container_name: chatbot
+    ports:
+      - "8003:8000"
+    depends_on:
+      - ml-pipeline
+      - raft-simulator
 
 volumes:
   postgres_data:

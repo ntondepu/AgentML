@@ -2,11 +2,17 @@
 AI Chatbot API endpoints for the AutoML Distributed Platform.
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, FastAPI, Request, Header
 from pydantic import BaseModel
 from typing import Dict, List, Optional, Any
 import asyncio
 import logging
+import requests
+import faiss
+import numpy as np
+from prometheus_client import make_asgi_app, Counter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+# from openai import OpenAI  # Uncomment if using OpenAI
 
 from .bot import ChatbotManager
 from .models import ChatMessage, ChatSession, ChatResponse
@@ -18,6 +24,27 @@ chatbot_router = APIRouter()
 
 # Global chatbot manager instance
 chatbot_manager = None
+
+# Prometheus metrics
+chat_counter = Counter('chatbot_messages', 'Number of chatbot messages processed')
+
+# FAISS vector DB setup (in-memory, for demo)
+dim = 384  # Example embedding size
+index = faiss.IndexFlatL2(dim)
+vector_store = []  # Store (text, vector) tuples
+
+# TODO: Replace with your OpenAI or Hugging Face API key
+OPENAI_API_KEY = "sk-..."
+
+API_KEY = "demo-key-123"
+
+def api_key_auth(x_api_key: str = Header(...)):
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+
+class ChatRequest(BaseModel):
+    user: str
+    message: str
 
 
 async def get_chatbot_manager() -> ChatbotManager:
@@ -270,3 +297,35 @@ async def get_platform_health_command(
     except Exception as e:
         logger.error(f"Error executing platform health command: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@chatbot_router.post("/chat")
+def chat_endpoint(req: ChatRequest, dep=Depends(api_key_auth)):
+    chat_counter.inc()
+    # TODO: Replace with real embedding (OpenAI/HF) and LLM call
+    user_vector = np.random.rand(dim).astype('float32')
+    index.add(np.expand_dims(user_vector, 0))
+    vector_store.append((req.message, user_vector))
+    # TODO: Use OpenAI/HF to generate response
+    response = f"Echo: {req.message} (context size: {len(vector_store)})"
+    return {"response": response}
+
+
+@chatbot_router.get("/model-info")
+def model_info(dep=Depends(api_key_auth)):
+    # Call ML pipeline API for model info
+    try:
+        r = requests.get("http://ml-pipeline:8000/latest-accuracy")
+        return r.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@chatbot_router.get("/cluster-status")
+def cluster_status(dep=Depends(api_key_auth)):
+    # Call Raft API for cluster state
+    try:
+        r = requests.get("http://raft-simulator:8000/api/raft/cluster-state")
+        return r.json()
+    except Exception as e:
+        return {"error": str(e)}

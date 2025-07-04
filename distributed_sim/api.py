@@ -2,7 +2,7 @@
 Distributed Systems Simulation API endpoints.
 """
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, FastAPI, Header, Depends
 from pydantic import BaseModel
 from typing import Dict, List, Optional, Any
 import asyncio
@@ -20,6 +20,11 @@ distributed_router = APIRouter()
 # Global simulator instance
 simulator = None
 
+API_KEY = "demo-key-123"
+
+def api_key_auth(x_api_key: str = Header(...)):
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
 
 async def get_simulator() -> RaftSimulator:
     """Get the Raft simulator instance."""
@@ -375,3 +380,36 @@ async def run_scenario(scenario_id: str) -> Dict[str, str]:
     except Exception as e:
         logger.error(f"Error running scenario {scenario_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@distributed_router.get("/api/raft/cluster-state")
+async def get_cluster_state(dep=Depends(api_key_auth)):
+    state = simulator.get_cluster_state()
+    return state.dict() if hasattr(state, 'dict') else state
+
+
+@distributed_router.post("/api/raft/trigger-election")
+async def trigger_election(dep=Depends(api_key_auth)):
+    await simulator.trigger_election("node_0")
+    return {"status": "Election triggered"}
+
+
+@distributed_router.post("/api/raft/create-partition")
+async def create_partition(dep=Depends(api_key_auth)):
+    partition_id = "partition1"
+    nodes = [f"node_{i}" for i in range(simulator.cluster_size // 2)]
+    await simulator.create_partition(partition_id, nodes)
+    return {"status": "Partition created", "partition_id": partition_id}
+
+
+@distributed_router.post("/api/raft/reset")
+async def reset_simulation(dep=Depends(api_key_auth)):
+    await simulator.stop()
+    simulator.__init__(simulator.cluster_size)
+    await simulator.start()
+    return {"status": "Simulation reset"}
+
+
+# If using FastAPI app directly
+app = FastAPI()
+app.include_router(distributed_router)

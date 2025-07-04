@@ -6,8 +6,9 @@ import asyncio
 import pytest
 from datetime import datetime
 from unittest.mock import Mock, patch, AsyncMock
+import unittest
 
-from ml_pipeline.pipeline import MLPipelineManager
+from ml_pipeline.pipeline import MLPipelineManager, run_pipeline
 from ml_pipeline.models import (
     PipelineJob, 
     PipelineStatus, 
@@ -284,5 +285,14 @@ class TestMLPipelineIntegration:
         assert updated_pipeline.status == PipelineStatus.STOPPED
 
 
+class TestMLPipeline(unittest.TestCase):
+    def test_pipeline_runs(self):
+        # This will run the pipeline and print accuracy
+        try:
+            run_pipeline()
+        except Exception as e:
+            self.fail(f"Pipeline run failed: {e}")
+
+
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    unittest.main()

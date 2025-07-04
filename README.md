@@ -82,14 +82,61 @@ AgentML/
 └── docs/                # Documentation
 ```
 
-## Development Roadmap
+## Project Roadmap: AutoML Distributed Platform + Distributed Systems Simulation + AI Chatbot
 
-- [x] Phase 1: Planning & Setup (Weeks 1-2)
-- [ ] Phase 2: Core ML Pipeline Automation (Weeks 3-6)
-- [ ] Phase 3: Distributed Systems Simulation (Weeks 5-8)
-- [ ] Phase 4: AI Chatbot Interface (Weeks 7-10)
-- [ ] Phase 5: Telemetry & Production Hardening (Weeks 9-12)
-- [ ] Phase 6: Documentation, Demo & Presentation (Weeks 13-14)
+## Phase 1: Planning & Setup (Weeks 1-2)
+- Define core use cases and user stories (e.g., "User triggers model training," "Chatbot queries model metrics")
+- Design system architecture diagram showing components & data flow
+- Choose cloud platform (AWS, GCP, or Azure) and set up base infrastructure
+- Set up version control repo and CI/CD pipeline for project code
+
+## Phase 2: Core ML Pipeline Automation (Weeks 3-6)
+- Build initial ML pipeline with Kubeflow or MLflow:
+  - Data ingestion and preprocessing stage (simulate with synthetic data if needed)
+  - Model training & validation stage (start with a simple model, e.g., classification)
+  - Model deployment automation (containerize model and deploy on Kubernetes)
+- Integrate monitoring with OpenTelemetry to collect traces and metrics
+- Set up Prometheus + Grafana dashboards for latency, throughput, error rates
+- Write unit and integration tests for pipeline stages
+
+## Phase 3: Distributed Systems Simulation (Weeks 5-8, overlaps with Phase 2)
+- Implement a simplified Raft consensus module in Python (or reuse an open-source implementation)
+- Create a React-based UI to visualize Raft states (leader election, logs, heartbeats)
+- Integrate the simulator to coordinate distributed ML jobs or parameter servers
+- Add metrics and tracing to simulate distributed consensus behavior
+
+## Phase 4: AI Chatbot Interface (Weeks 7-10)
+- Develop a chatbot backend using OpenAI API or Hugging Face transformers
+- Connect chatbot to platform APIs for querying model info, triggering retraining, getting cluster status
+- Build conversational context using a vector DB (e.g., Pinecone or FAISS) for multi-turn dialogue
+- Create a user-facing React UI or Slack bot for chatbot interactions
+- Test chatbot workflows and fallback handling
+
+## Phase 5: Telemetry & Production Hardening (Weeks 9-12)
+- Add OpenTelemetry instrumentation across all components
+- Set up alerting rules in Prometheus/Grafana for pipeline failures or performance degradation
+- Improve fault tolerance and autoscaling in Kubernetes setup
+- Add authentication and role-based access if applicable
+- Conduct end-to-end testing and performance profiling
+
+## Phase 6: Documentation, Demo & Presentation (Weeks 13-14)
+- Prepare clear README with architecture, setup instructions, and usage examples
+- Record Loom walkthroughs showcasing pipeline, simulator, and chatbot features
+- Write SOPs or technical docs explaining design decisions and future roadmap
+- Prepare a demo presentation highlighting key outcomes and lessons learned
+
+---
+
+## Deliverables Summary
+
+| Phase                  | Deliverables                                             |
+|------------------------|---------------------------------------------------------|
+| Planning & Setup       | Architecture docs, repo with CI/CD, cloud setup         |
+| ML Pipeline Automation | Automated, monitored ML pipeline with dashboards        |
+| Distributed Simulation | Raft consensus simulator with interactive UI            |
+| AI Chatbot Interface   | Chatbot connected to platform with vector search        |
+| Production Hardening   | Full telemetry, alerting, autoscaling, tests            |
+| Documentation & Demo   | Readme, walkthrough videos, presentations               |
 
 ## Contributing
 
