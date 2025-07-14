@@ -23,8 +23,8 @@ from .models import (
     VoteResponse,
     MessageLog
 )
-from ..monitoring.telemetry import metrics
-from ..config import settings
+from monitoring.telemetry import metrics
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -253,38 +253,39 @@ class RaftSimulator:
     
     async def _send_vote_request(self, candidate: RaftNode, target: RaftNode):
         """Send vote request to target node."""
-        last_log_index = len(candidate.log)
+        last_log_index = len(candidate.log) - 1
         last_log_term = candidate.log[-1].term if candidate.log else 0
-        
-        # Check if target can vote
-        if target.handle_vote_request(VoteRequest(
+
+        # Build vote request
+        vote_request = VoteRequest(
             term=candidate.current_term,
             candidate_id=candidate.id,
             last_log_term=last_log_term,
             last_log_index=last_log_index
-        )):
-            target.voted_for = candidate.id
-            target.current_term = candidate.current_term
+        )
+        # Target handles vote request
+        vote_response = target.handle_vote_request(vote_request)
+
+        # Log the vote request
+        await self._log_message("vote_request", candidate.id, target.id, {
+            "term": candidate.current_term,
+            "granted": vote_response.vote_granted
+        })
+
+        if vote_response.vote_granted:
             candidate.votes_received.add(target.id)
-            
-            await self._log_message("vote_request", candidate.id, target.id, {
-                "term": candidate.current_term,
-                "granted": True
-            })
-            
-            # Check if won election
+            # Check if candidate has won majority after this vote
             if len(candidate.votes_received) > len(self.nodes) // 2:
                 candidate.become_leader()
-                
-                # Notify other nodes about new leader
+                await self._log_message("election", candidate.id, "broadcast", {
+                    "result": "won",
+                    "term": candidate.current_term,
+                    "votes": len(candidate.votes_received)
+                })
+                # Notify other nodes to become followers
                 for node in self.nodes.values():
                     if node.id != candidate.id:
                         node.become_follower(candidate.current_term)
-        else:
-            await self._log_message("vote_request", candidate.id, target.id, {
-                "term": candidate.current_term,
-                "granted": False
-            })
     
     async def _send_heartbeats(self, leader: RaftNode):
         """Send heartbeats from leader to all followers."""

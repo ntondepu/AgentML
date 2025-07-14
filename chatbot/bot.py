@@ -30,8 +30,8 @@ from .models import (
     ChatbotCapabilities,
     MessageRole
 )
-from ..monitoring.telemetry import metrics
-from ..config import settings
+from monitoring.telemetry import metrics
+from config import settings
 
 logger = logging.getLogger(__name__)
 

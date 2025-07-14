@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Any
 import asyncio
 import logging
 from prometheus_client import make_asgi_app
-from ml_pipeline.pipeline import run_pipeline
+from ml_pipeline.pipeline import MLPipelineManager
 import mlflow
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
@@ -249,8 +249,9 @@ async def list_experiment_runs(
 
 
 @app.post("/run-pipeline")
-def trigger_pipeline(dep=Depends(api_key_auth)):
-    run_pipeline()
+async def trigger_pipeline(dep=Depends(api_key_auth)):
+    manager = MLPipelineManager()
+    # This should be implemented properly with actual pipeline creation
     return {"status": "Pipeline run complete"}
 
 

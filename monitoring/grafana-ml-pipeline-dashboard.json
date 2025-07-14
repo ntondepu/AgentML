@@ -1,0 +1,42 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "ML Pipeline Monitoring",
+    "panels": [
+      {
+        "type": "graph",
+        "title": "Model Training Duration",
+        "targets": [
+          { "expr": "ml_training_duration_seconds", "legendFormat": "Duration (s)" }
+        ],
+        "datasource": "Prometheus"
+      },
+      {
+        "type": "graph",
+        "title": "API Latency",
+        "targets": [
+          { "expr": "http_request_duration_seconds", "legendFormat": "API Latency (s)" }
+        ],
+        "datasource": "Prometheus"
+      },
+      {
+        "type": "graph",
+        "title": "Error Rate",
+        "targets": [
+          { "expr": "sum(rate(http_requests_total{status=\"500\"}[5m])) by (job)", "legendFormat": "Error Rate" }
+        ],
+        "datasource": "Prometheus"
+      },
+      {
+        "type": "stat",
+        "title": "Active Raft Leaders",
+        "targets": [
+          { "expr": "raft_leader_count", "legendFormat": "Leaders" }
+        ],
+        "datasource": "Prometheus"
+      }
+    ],
+    "schemaVersion": 30,
+    "version": 1
+  }
+}

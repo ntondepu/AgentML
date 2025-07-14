@@ -7,7 +7,7 @@ from typing import Optional
 
 from prometheus_client import Counter, Histogram, Gauge, generate_latest
 from opentelemetry import trace
-from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+# from opentelemetry.exporter.jaeger.thrift import JaegerExporter  # Not available
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -81,12 +81,13 @@ def setup_telemetry(app, jaeger_endpoint: Optional[str] = None):
     
     # Setup Jaeger exporter if endpoint is provided
     if jaeger_endpoint:
-        jaeger_exporter = JaegerExporter(
-            agent_host_name="localhost",
-            agent_port=6831,
-        )
-        span_processor = BatchSpanProcessor(jaeger_exporter)
-        tracer_provider.add_span_processor(span_processor)
+        # jaeger_exporter = JaegerExporter(
+        #     agent_host_name="localhost",
+        #     agent_port=6831,
+        # )
+        # span_processor = BatchSpanProcessor(jaeger_exporter)
+        # tracer_provider.add_span_processor(span_processor)
+        logger.info("Jaeger exporter not available, skipping tracing setup")
     
     # Instrument FastAPI
     FastAPIInstrumentor.instrument_app(app, tracer_provider=tracer_provider)

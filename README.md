@@ -138,6 +138,23 @@ AgentML/
 | Production Hardening   | Full telemetry, alerting, autoscaling, tests            |
 | Documentation & Demo   | Readme, walkthrough videos, presentations               |
 
+## Project Completion Checklist
+
+See `CHECKLIST.md` for a detailed, phase-by-phase status. Below is a summary:
+
+| Phase                  | Status/Deliverables Present?                                 |
+|------------------------|-------------------------------------------------------------|
+| Planning & Setup       | Docs, repo, partial infra (cloud & CI/CD config not found)   |
+| ML Pipeline Automation | ML pipeline, Docker, K8s, monitoring, tests; no Grafana      |
+| Distributed Simulation | Raft simulator, metrics; UI unclear                          |
+| AI Chatbot Interface   | Backend code; API/vector DB/Slack bot unclear                |
+| Production Hardening   | Telemetry, alerting, autoscaling, tests; no RBAC             |
+| Documentation & Demo   | Readme, SOP, demo script; videos not found                   |
+
+Legend: [x] = Complete, [ ] = Missing/Unclear
+
+---
+
 ## Contributing
 
 Please refer to [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.

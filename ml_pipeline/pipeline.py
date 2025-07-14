@@ -31,8 +31,8 @@ from .models import (
     DeploymentStatus,
     DatasetInfo
 )
-from ..monitoring.telemetry import metrics, get_tracer
-from ..config import settings
+from monitoring.telemetry import metrics, get_tracer
+from config import settings
 
 logger = logging.getLogger(__name__)
 
