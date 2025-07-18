@@ -8,7 +8,6 @@ from typing import Dict, List, Optional, Any
 import asyncio
 import logging
 from prometheus_client import make_asgi_app
-from ml_pipeline.pipeline import MLPipelineManager
 import mlflow
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
