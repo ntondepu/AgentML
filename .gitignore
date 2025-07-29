@@ -53,3 +53,11 @@ models/*.pb
 
 # Data (if large)
 # data/large_datasets/
+
+# Ignore node_modules and cache files
+node_modules/
+frontend/node_modules/
+frontend/node_modules/.cache/
+*.pack
+*.log
+*.pyc
