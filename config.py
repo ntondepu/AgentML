@@ -35,6 +35,10 @@ class Settings(BaseSettings):
         default="s3://mlflow-artifacts/",
         env="MLFLOW_ARTIFACT_ROOT"
     )
+    mlflow_image: str = Field(
+        default="mlflow/mlflow:latest",
+        env="MLFLOW_IMAGE"
+    )
     
     # MinIO settings
     minio_endpoint: str = Field(default="localhost:9000", env="MINIO_ENDPOINT")
@@ -80,22 +84,28 @@ class Settings(BaseSettings):
     model_dir: str = Field(default="./models", env="MODEL_DIR")
     
     # Security settings
-    secret_key: str = Field(
-        default="your-secret-key-change-in-production",
-        env="SECRET_KEY"
-    )
+    secret_key: str = Field(default="change-me", env="SECRET_KEY")
     access_token_expire_minutes: int = Field(
         default=30, env="ACCESS_TOKEN_EXPIRE_MINUTES"
     )
+    sanitize_input: bool = Field(default=True, env="SANITIZE_INPUT")
+    enable_access_control: bool = Field(default=False, env="ENABLE_ACCESS_CONTROL")
+    allowed_api_keys: Optional[str] = Field(default=None, env="ALLOWED_API_KEYS")
+
+    # Logging and metrics
+    log_format: str = Field(default="%(asctime)s %(levelname)s %(name)s %(message)s", env="LOG_FORMAT")
+    enable_metrics: bool = Field(default=True, env="ENABLE_METRICS")
     
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = False
-    
+
     def __init__(self, **kwargs):
+        """
+        Initialize settings and create necessary directories.
+        """
         super().__init__(**kwargs)
-        # Create necessary directories
         Path(self.data_dir).mkdir(parents=True, exist_ok=True)
         Path(self.model_dir).mkdir(parents=True, exist_ok=True)
         Path(self.vector_db_path).mkdir(parents=True, exist_ok=True)
@@ -107,26 +117,38 @@ settings = Settings()
 
 # Environment-specific configurations
 class DevelopmentConfig(Settings):
-    """Development configuration."""
+    """
+    Development configuration.
+    Enables debug mode and verbose logging.
+    """
     debug: bool = True
     log_level: str = "DEBUG"
 
 
 class ProductionConfig(Settings):
-    """Production configuration."""
+    """
+    Production configuration.
+    Disables debug mode and sets log level to INFO.
+    """
     debug: bool = False
     log_level: str = "INFO"
 
 
 class TestingConfig(Settings):
-    """Testing configuration."""
+    """
+    Testing configuration.
+    Uses SQLite and enables debug mode for tests.
+    """
     debug: bool = True
     log_level: str = "DEBUG"
     database_url: str = "sqlite:///./test.db"
 
 
 def get_settings() -> Settings:
-    """Get settings based on environment."""
+    """
+    Get settings based on environment.
+    Returns the appropriate config class for dev, prod, or test.
+    """
     env = os.getenv("ENVIRONMENT", "development").lower()
     
     if env == "production":
@@ -135,3 +157,6 @@ def get_settings() -> Settings:
         return TestingConfig()
     else:
         return DevelopmentConfig()
+
+
+index = None  # Always fallback in config.py; faiss logic should be handled in chatbot/api.py or bot.py

@@ -11,10 +11,15 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple
 import os
 
-# Vector database and embeddings
-import faiss
-import numpy as np
-from sentence_transformers import SentenceTransformer
+# Vector database and embeddings (with fallback handling)
+try:
+    import faiss
+    import numpy as np
+    from sentence_transformers import SentenceTransformer
+    DEPENDENCIES_AVAILABLE = True
+except ImportError as e:
+    logging.warning(f"Optional dependencies not available: {e}. Using fallback implementation.")
+    DEPENDENCIES_AVAILABLE = False
 
 from .models import (
     ChatMessage, 
@@ -149,20 +154,30 @@ class EntityExtractor:
 
 
 class VectorDatabase:
-    """Simple vector database using FAISS."""
+    """Simple vector database with fallback implementation."""
     
-    def __init__(self, dimension: int = 384):
-        self.dimension = dimension
-        self.index = faiss.IndexFlatL2(dimension)
+    def __init__(self, dimension: int = None):
+        # Use config or environment variable for embedding dimension
+        self.dimension = dimension if dimension is not None else getattr(settings, "embedding_dimension", 384)
         self.entries: List[KnowledgeBaseEntry] = []
         self.encoder = None
+        
+        if DEPENDENCIES_AVAILABLE:
+            self.index = faiss.IndexFlatL2(self.dimension)
+        else:
+            self.index = None
     
     async def initialize(self):
         """Initialize the vector database."""
         logger.info("Initializing vector database...")
         
-        # Initialize sentence transformer
-        self.encoder = SentenceTransformer(settings.huggingface_model)
+        if DEPENDENCIES_AVAILABLE:
+            # Initialize sentence transformer
+            try:
+                self.encoder = SentenceTransformer(getattr(settings, "huggingface_model", "sentence-transformers/all-MiniLM-L6-v2"))
+            except Exception as e:
+                logger.warning(f"Could not initialize sentence transformer: {e}")
+                self.encoder = None
         
         # Load existing knowledge base
         await self.load_knowledge_base()
@@ -171,38 +186,14 @@ class VectorDatabase:
     
     async def load_knowledge_base(self):
         """Load knowledge base from files."""
-        kb_entries = [
-            {
-                "title": "ML Pipeline Status",
-                "content": "To check ML pipeline status, use the /api/ml/pipelines endpoint or ask about specific pipeline names.",
-                "category": "ml_pipeline",
-                "tags": ["api", "status", "monitoring"]
-            },
-            {
-                "title": "Creating ML Pipelines",
-                "content": "Create new ML pipelines using the /api/ml/pipelines endpoint with POST method. Specify model type, dataset, and algorithm.",
-                "category": "ml_pipeline",
-                "tags": ["api", "creation", "training"]
-            },
-            {
-                "title": "Distributed System Status",
-                "content": "Check distributed system status with /api/distributed/cluster endpoint. Shows leader, nodes, and consensus state.",
-                "category": "distributed",
-                "tags": ["api", "status", "consensus"]
-            },
-            {
-                "title": "Node Management",
-                "content": "Manage cluster nodes using /api/distributed/nodes endpoints. You can start, stop, or restart nodes.",
-                "category": "distributed",
-                "tags": ["api", "nodes", "management"]
-            },
-            {
-                "title": "Platform Health",
-                "content": "Platform health can be checked at /health endpoint. Shows overall system status and component health.",
-                "category": "platform",
-                "tags": ["health", "monitoring", "system"]
-            }
-        ]
+        # Load knowledge base entries from config or external file
+        kb_entries = getattr(settings, "knowledge_base_entries", [])
+        if not kb_entries:
+            kb_path = getattr(settings, "knowledge_base_path", None)
+            if kb_path and os.path.exists(kb_path):
+                import json
+                with open(kb_path, "r") as f:
+                    kb_entries = json.load(f)
         
         for entry_data in kb_entries:
             entry = KnowledgeBaseEntry(
@@ -213,33 +204,61 @@ class VectorDatabase:
                 tags=entry_data["tags"]
             )
             
-            # Generate embedding
-            embedding = self.encoder.encode(entry.content)
-            entry.embedding = embedding.tolist()
+            # Generate embedding if dependencies are available
+            if self.encoder and DEPENDENCIES_AVAILABLE:
+                try:
+                    embedding = self.encoder.encode(entry.content)
+                    entry.embedding = embedding.tolist()
+                    self.index.add(np.array([embedding], dtype=np.float32))
+                except Exception as e:
+                    logger.warning(f"Could not generate embedding: {e}")
             
             self.entries.append(entry)
-            self.index.add(np.array([embedding], dtype=np.float32))
     
     def search(self, query: str, k: int = 5) -> List[KnowledgeBaseEntry]:
         """Search for relevant knowledge base entries."""
-        if not self.encoder:
-            return []
+        if not self.encoder or not DEPENDENCIES_AVAILABLE:
+            # Fallback: simple text matching
+            results = []
+            query_lower = query.lower()
+            for entry in self.entries:
+                if (query_lower in entry.content.lower() or 
+                    query_lower in entry.title.lower() or
+                    any(tag in query_lower for tag in entry.tags)):
+                    results.append(entry)
+                    if len(results) >= k:
+                        break
+            return results
         
-        # Encode query
-        query_embedding = self.encoder.encode(query)
-        
-        # Search in FAISS index
-        distances, indices = self.index.search(
-            np.array([query_embedding], dtype=np.float32), k
-        )
-        
-        # Return relevant entries
-        results = []
-        for idx in indices[0]:
-            if idx < len(self.entries):
-                results.append(self.entries[idx])
-        
-        return results
+        try:
+            # Encode query
+            query_embedding = self.encoder.encode(query)
+            
+            # Search in FAISS index
+            distances, indices = self.index.search(
+                np.array([query_embedding], dtype=np.float32), k
+            )
+            
+            # Return relevant entries
+            results = []
+            for idx in indices[0]:
+                if idx < len(self.entries):
+                    results.append(self.entries[idx])
+            
+            return results
+        except Exception as e:
+            logger.warning(f"Vector search failed, using fallback: {e}")
+            # Fallback to simple text matching
+            results = []
+            query_lower = query.lower()
+            for entry in self.entries:
+                if (query_lower in entry.content.lower() or 
+                    query_lower in entry.title.lower() or
+                    any(tag in query_lower for tag in entry.tags)):
+                    results.append(entry)
+                    if len(results) >= k:
+                        break
+            return results
 
 
 class ChatbotManager:
@@ -273,40 +292,77 @@ class ChatbotManager:
     
     async def load_sessions(self):
         """Load existing sessions."""
-        # In a real implementation, this would load from a database
-        # For now, create a demo session
-        demo_session = ChatSession(
-            id="demo_session",
-            title="Demo Conversation",
-            user_id="demo_user",
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
-            message_count=0,
-            context={"demo": True}
-        )
-        
-        self.sessions["demo_session"] = demo_session
-        self.messages["demo_session"] = []
+        # Load initial sessions from config or external file
+        initial_sessions = getattr(settings, "initial_sessions", [])
+        for session_data in initial_sessions:
+            session = ChatSession(
+                id=session_data.get("id", str(uuid.uuid4())),
+                title=session_data.get("title", "Conversation"),
+                user_id=session_data.get("user_id", "user"),
+                created_at=session_data.get("created_at", datetime.now()),
+                updated_at=session_data.get("updated_at", datetime.now()),
+                message_count=session_data.get("message_count", 0),
+                context=session_data.get("context", {}),
+                metadata=session_data.get("metadata", {})
+            )
+            self.sessions[session.id] = session
+            self.messages[session.id] = []
     
-    async def process_message(self, message: ChatMessage) -> ChatResponse:
-        """Process a chat message and generate response."""
+    async def process_message(self, message: ChatMessage, api_key: Optional[str] = None) -> ChatResponse:
+        """
+        Process a chat message and generate response.
+        Includes input sanitization, access control, structured logging, and metrics.
+        """
         start_time = datetime.now()
-        
+
+        # Access control check
+        if getattr(settings, "enable_access_control", False):
+            allowed_keys = getattr(settings, "allowed_api_keys", None)
+            if allowed_keys:
+                allowed_keys = [k.strip() for k in allowed_keys.split(",") if k.strip()]
+                if not api_key or api_key not in allowed_keys:
+                    logger.warning(f"Unauthorized API key: {api_key}")
+                    error_message = ChatMessage(
+                        id=str(uuid.uuid4()),
+                        session_id=message.session_id,
+                        role=MessageRole.ASSISTANT,
+                        content="Access denied: invalid API key.",
+                        timestamp=datetime.now(),
+                        metadata={"error": "access_denied"}
+                    )
+                    return ChatResponse(
+                        message=error_message,
+                        confidence=0.0,
+                        intent=ConversationIntent.ERROR.value,
+                        entities=[],
+                        suggestions=["Contact admin"],
+                        actions=[],
+                        context={"error": True}
+                    )
+
+        # Input sanitization
+        user_content = message.content
+        if getattr(settings, "sanitize_input", True):
+            user_content = self._sanitize(user_content)
+
         try:
+            # Structured logging
+            logger.info(f"Processing message: session={message.session_id}, user={message.role}, content={user_content}")
+
             # Classify intent
-            intent, confidence = self.intent_classifier.classify_intent(message.content)
-            
+            intent, confidence = self.intent_classifier.classify_intent(user_content)
+
             # Extract entities
-            entities = self.entity_extractor.extract_entities(message.content)
-            
+            entities = self.entity_extractor.extract_entities(user_content)
+
             # Search knowledge base
-            relevant_entries = self.vector_db.search(message.content)
-            
+            relevant_entries = self.vector_db.search(user_content)
+
             # Generate response based on intent
             response_content = await self.generate_response(
-                intent, message.content, entities, relevant_entries
+                intent, user_content, entities, relevant_entries
             )
-            
+
             # Create response message
             response_message = ChatMessage(
                 id=str(uuid.uuid4()),
@@ -320,30 +376,31 @@ class ChatbotManager:
                     "entities_count": len(entities)
                 }
             )
-            
+
             # Store messages
             if message.session_id not in self.messages:
                 self.messages[message.session_id] = []
-            
+
             self.messages[message.session_id].append(message)
             self.messages[message.session_id].append(response_message)
-            
+
             # Update session
             if message.session_id in self.sessions:
                 session = self.sessions[message.session_id]
                 session.message_count += 2
                 session.updated_at = datetime.now()
-            
+
             # Generate suggestions
             suggestions = await self.generate_suggestions(intent, entities)
-            
+
             # Generate actions
             actions = await self.generate_actions(intent, entities)
-            
+
             # Update metrics
             response_time = (datetime.now() - start_time).total_seconds()
-            metrics.record_chatbot_conversation(response_time)
-            
+            if getattr(settings, "enable_metrics", True):
+                metrics.record_chatbot_conversation(response_time)
+
             return ChatResponse(
                 message=response_message,
                 confidence=confidence,
@@ -353,10 +410,10 @@ class ChatbotManager:
                 actions=actions,
                 context={"intent": intent.value, "entities": len(entities)}
             )
-            
+
         except Exception as e:
             logger.error(f"Error processing message: {e}")
-            
+
             # Generate error response
             error_message = ChatMessage(
                 id=str(uuid.uuid4()),
@@ -366,7 +423,7 @@ class ChatbotManager:
                 timestamp=datetime.now(),
                 metadata={"error": str(e)}
             )
-            
+
             return ChatResponse(
                 message=error_message,
                 confidence=0.0,
@@ -376,6 +433,16 @@ class ChatbotManager:
                 actions=[],
                 context={"error": True}
             )
+
+    def _sanitize(self, text: str) -> str:
+        """
+        Basic input sanitization: strips dangerous characters and trims whitespace.
+        Extend as needed for your use case.
+        """
+        import html
+        sanitized = html.escape(text)
+        sanitized = sanitized.strip()
+        return sanitized
     
     async def generate_response(
         self, 
@@ -441,94 +508,35 @@ Just ask me about any of these topics!"""
     async def _handle_ml_status(self, entities: List[Entity]) -> str:
         """Handle ML pipeline status queries."""
         try:
-            # In a real implementation, this would query the ML pipeline API
-            return """**ML Pipeline Status**
-
-🟢 **Active Pipelines:** 2
-- Customer Churn Prediction: 75% complete (5 min remaining)
-- Fraud Detection: Completed successfully
-
-🔄 **Recent Activity:**
-- Model deployment started for "Customer Segmentation"
-- Training completed for "Price Prediction" model
-
-📊 **Overall Health:** Good
-- Success rate: 94%
-- Average training time: 15 minutes"""
-        
+            # Query pipeline status from API or config
+            if hasattr(settings, "ml_status_template"):
+                return settings.ml_status_template
+            # Fallback: query API if available
+            # ...existing code...
+            return "ML pipeline status is not available. Please configure 'ml_status_template' in settings."
         except Exception as e:
             return f"Sorry, I couldn't fetch the ML pipeline status. Error: {str(e)}"
     
     async def _handle_ml_create(self, entities: List[Entity]) -> str:
         """Handle ML pipeline creation requests."""
-        return """**Creating ML Pipeline**
-
-To create a new ML pipeline, I need some information:
-
-1. **Model Type**: Classification, Regression, or Clustering?
-2. **Dataset**: Which dataset would you like to use?
-3. **Algorithm**: Any specific algorithm preference?
-
-You can also use the API directly:
-```
-POST /api/ml/pipelines
-{
-  "name": "My New Pipeline",
-  "model_type": "classification",
-  "dataset_id": "churn_dataset_001",
-  "algorithm": "random_forest"
-}
-```
-
-Would you like me to help you create one?"""
+        if hasattr(settings, "ml_create_template"):
+            return settings.ml_create_template
+        return "ML pipeline creation instructions are not available. Please configure 'ml_create_template' in settings."
     
     async def _handle_distributed_status(self) -> str:
         """Handle distributed system status queries."""
         try:
-            return """**Distributed System Status**
-
-🟢 **Cluster Health:** Healthy
-- **Leader:** node_1 (term 5)
-- **Active Nodes:** 4/5
-- **Consensus:** Stable
-
-📊 **Node Status:**
-- node_1: Leader (Running)
-- node_2: Follower (Running)
-- node_3: Follower (Running)
-- node_4: Follower (Running)
-- node_5: Follower (Stopped)
-
-🔄 **Recent Activity:**
-- Last election: 2 minutes ago
-- Log entries: 15 (all committed)
-- Network partitions: None"""
-        
+            if hasattr(settings, "distributed_status_template"):
+                return settings.distributed_status_template
+            return "Distributed system status is not available. Please configure 'distributed_status_template' in settings."
         except Exception as e:
             return f"Sorry, I couldn't fetch the distributed system status. Error: {str(e)}"
     
     async def _handle_platform_health(self) -> str:
         """Handle platform health queries."""
-        return """**Platform Health Status**
-
-🟢 **Overall Status:** Healthy
-
-**Component Status:**
-- 🟢 ML Pipeline: Running (2 active jobs)
-- 🟢 Distributed Sim: Running (4/5 nodes active)
-- 🟢 Chatbot: Running (1 active session)
-- 🟢 Monitoring: Running (all metrics collected)
-
-**System Metrics:**
-- CPU Usage: 45%
-- Memory Usage: 62%
-- Disk Usage: 34%
-- Network: Normal
-
-**Recent Events:**
-- System started 2 hours ago
-- All components initialized successfully
-- No errors in last 24 hours"""
+        if hasattr(settings, "platform_health_template"):
+            return settings.platform_health_template
+        return "Platform health status is not available. Please configure 'platform_health_template' in settings."
     
     async def generate_suggestions(self, intent: ConversationIntent, entities: List[Entity]) -> List[str]:
         """Generate follow-up suggestions."""

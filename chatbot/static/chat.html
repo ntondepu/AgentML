@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentML Chatbot</title>
+  <style>
+    body {
+      background: linear-gradient(120deg, #e6f2e6 0%, #f5f5dc 100%);
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .chat-container {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(60, 80, 60, 0.12);
+      width: 400px;
+      max-width: 90vw;
+      padding: 32px 24px 24px 24px;
+      display: flex;
+      flex-direction: column;
+    }
+    .chat-header {
+      font-size: 1.5rem;
+      color: #3a5a40;
+      margin-bottom: 12px;
+      text-align: center;
+      font-weight: 600;
+    }
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      margin-bottom: 18px;
+      padding-right: 4px;
+      max-height: 320px;
+    }
+    .message {
+      margin-bottom: 10px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      background: #e6f2e6;
+      color: #3a5a40;
+      width: fit-content;
+      max-width: 80%;
+    }
+    .message.user {
+      background: #f5f5dc;
+      color: #6b705c;
+      align-self: flex-end;
+    }
+    .chat-input {
+      display: flex;
+      gap: 8px;
+    }
+    .chat-input input {
+      flex: 1;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #b7b7a4;
+      font-size: 1rem;
+      outline: none;
+    }
+    .chat-input button {
+      background: #3a5a40;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .chat-input button:hover {
+      background: #588157;
+    }
+    .api-key {
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    .api-key input {
+      width: 70%;
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid #b7b7a4;
+      font-size: 0.95rem;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <div class="chat-header">AgentML Chatbot</div>
+    <!-- API key input removed -->
+    <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+      <button type="button" class="quick-action" onclick="sendQuickAction('status')">ML Pipeline Status</button>
+      <button type="button" class="quick-action" onclick="sendQuickAction('cluster health')">Cluster Health</button>
+      <button type="button" class="quick-action" onclick="sendQuickAction('metrics')">Platform Metrics</button>
+      <button type="button" class="quick-action" onclick="sendQuickAction('create pipeline')">Create Pipeline</button>
+    </div>
+    <div class="chat-messages" id="chatMessages"></div>
+    <form class="chat-input" id="chatForm">
+      <input type="text" id="chatInput" placeholder="Type your message..." autocomplete="off" required>
+      <button type="submit">Send</button>
+    </form>
+  </div>
+  <script>
+    function sendQuickAction(action) {
+      addMessage('Quick Action: ' + action, 'user');
+      fetch('/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': 'demo-key-123'
+        },
+        body: JSON.stringify({
+          id: 'msg_' + Math.floor(Math.random() * 1000000),
+          session_id: 'session_' + user,
+          role: 'user',
+          content: action,
+          timestamp: new Date().toISOString(),
+          metadata: {}
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        addMessage(formatBotResponse(data), 'bot');
+      })
+      .catch(err => {
+        addMessage('Error: ' + err, 'bot');
+      });
+    }
+    const chatMessages = document.getElementById('chatMessages');
+    const chatForm = document.getElementById('chatForm');
+    const chatInput = document.getElementById('chatInput');
+    const apiKeyInput = document.getElementById('apiKey');
+    let user = 'user_' + Math.floor(Math.random() * 10000);
+
+    function formatBotResponse(data) {
+      // If data is an object and has a 'message' property, render a detailed chatbot response
+      if (typeof data === 'object' && data !== null && 'message' in data) {
+        const msg = data.message;
+        let html = '';
+        // Main assistant message
+        html += `<div style="margin-bottom:8px;"><strong>${msg.role === 'assistant' ? '🤖 Assistant' : msg.role}:</strong> ${msg.content}</div>`;
+        return html;
+      }
+      // If data is an array of objects, render as a detailed table
+      if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object') {
+        const allKeys = Array.from(new Set(data.flatMap(obj => Object.keys(obj))));
+        let html = '<table style="width:100%;border-collapse:collapse;font-size:0.95em;background:#f9f9f9;">';
+        html += '<thead><tr>';
+        allKeys.forEach(k => { html += `<th style="border:1px solid #ccc;padding:4px;background:#e6f2e6;">${k}</th>`; });
+        html += '</tr></thead><tbody>';
+        data.forEach(obj => {
+          html += '<tr>';
+          allKeys.forEach(k => {
+            let val = obj[k];
+            if (typeof val === 'object' && val !== null) {
+              val = `<pre style="margin:0;">${JSON.stringify(val, null, 2)}</pre>`;
+            }
+            html += `<td style="border:1px solid #ccc;padding:4px;vertical-align:top;">${val !== undefined ? val : ''}</td>`;
+          });
+          html += '</tr>';
+        });
+        html += '</tbody></table>';
+        return html;
+      }
+      // If data is an array, show all items
+      if (Array.isArray(data)) {
+        return data.map(item => {
+          if (typeof item === 'object' && item !== null) {
+            return `<pre>${JSON.stringify(item, null, 2)}</pre>`;
+          }
+          return item;
+        }).join('<hr>');
+      }
+      // If data is an object, pretty-print all details
+      if (typeof data === 'object' && data !== null) {
+        return `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+      }
+      // Otherwise, just return as is
+      return data;
+    }
+
+    function addMessage(text, sender) {
+      const msgDiv = document.createElement('div');
+      msgDiv.className = 'message ' + sender;
+      if (sender === 'bot') {
+        msgDiv.innerHTML = text;
+      } else {
+        msgDiv.textContent = text;
+      }
+      chatMessages.appendChild(msgDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    chatForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const message = chatInput.value.trim();
+      if (!message) return;
+      addMessage(message, 'user');
+      chatInput.value = '';
+      try {
+        const res = await fetch('/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': 'demo-key-123'
+          },
+          body: JSON.stringify({
+            id: 'msg_' + Math.floor(Math.random() * 1000000),
+            session_id: 'session_' + user,
+            role: 'user',
+            content: message,
+            timestamp: new Date().toISOString(),
+            metadata: {}
+          })
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          addMessage('Error: ' + (err.detail || res.statusText), 'bot');
+        } else {
+          const data = await res.json();
+          console.log('Raw backend response:', data);
+          addMessage(formatBotResponse(data), 'bot');
+        }
+      } catch (err) {
+        addMessage('Network error: ' + err, 'bot');
+      }
+    });
+  </script>
+</body>
+</html>
